@@ -22,7 +22,7 @@ if (!file.exists(here("data/MoviesData.csv"))) {
   write_csv(out, here("data/MoviesData.csv"))
 }
 if (!file.exists(here("data/Forstmann.csv"))) {
-  out <- read_csv("https://osf.io/h8j9f/")
+  out <- read_csv("https://osf.io/h8j9f/download")
   write_csv(out, here("data/Forstmann.csv"))
 }
 ```
