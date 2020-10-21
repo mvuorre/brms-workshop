@@ -1,0 +1,25 @@
+---
+title: "brms workshop"
+site: distill::distill_website
+listing: 
+  posts:
+    - introduction
+    - mediation
+    - ordinal
+---
+
+```{r download-datasets}
+# Ensure directories exist
+dir.create("data", FALSE)
+dir.create("models", FALSE)
+
+# Download from OSF and save to data/
+if (!file.exists(here("data/MoviesData.csv"))) {
+  out <- read_csv("https://osf.io/zftb3/download")
+  write_csv(out, here("data/MoviesData.csv"))
+}
+if (!file.exists(here("data/Forstmann.csv"))) {
+  out <- read_csv("https://osf.io/h8j9f/")
+  write_csv(out, here("data/Forstmann.csv"))
+}
+```

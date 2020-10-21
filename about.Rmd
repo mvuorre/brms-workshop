@@ -1,0 +1,53 @@
+---
+title: "brms workshop"
+author:
+  - name: Matti Vuorre
+    url: https://vuorre.netlify.com
+    affiliation: University of Oxford
+    affiliation_url: https://www.oii.ox.ac.uk/people/matti-vuorre/
+    orcid_id: 0000-0001-5052-066X
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Hello world!
+
+Hi! Welcome to the Bayesian regression modelling using [Stan](https://mc-stan.org/), [R](https://www.r-project.org/) and [brms](https://cran.r-project.org/package=brms) workshop. 
+
+## Learning objectives
+
+Our aim is to understand
+
+- Bayesian modelling workflow
+  - How to apply it in practice with R and brms
+- How to translate (mathematical) models to R and brms syntax
+- Estimating, interpreting, checking, and communicating a variety of specific regression models with brms, including
+  - General(ized) (non)Linear Models with R & brms
+  - Multilevel mediation
+    - Multivariate models
+    - Multilevel models
+      - -> Multilevel mediation
+  - Ordinal models
+- If we have time, we will also dive into the Stan language
+
+Our focus is on applications of these techniques to build a working knowledge, further readings are referenced for a more in-depth understanding.
+
+This workshop should provide you with a working knowledge, and confidence, to
+
+- Implement the models on your own data
+- Visualize and communicate your findings
+
+## Workshop materials
+
+This workshop's materials are written in [RMarkdown](https://rmarkdown.rstudio.com/), so you can download the source code and follow along on your own computer. We assume some familiarity with R, and recommend the [RStudio](https://rstudio.com/) IDE. 
+
+To get started, download the materials from <https://github.com/mvuorre/brms-workshop>, extract the package to your location of choice, and double click the `brms-workshop.Rproj` to open up an RStudio session in that directory. Alternatively, use this R command to download the files and open up the project:
+
+```{r, eval = FALSE, echo = TRUE}
+# install.packages("usethis")  # Install if you don't have it
+usethis::use_course("mvuorre/brms-workshop")
+```
+
+The materials of this workshop are collected as a [Distill](https://rstudio.github.io/distill/) website: Each lesson's materials can be found under the `_posts/` directory. To run the computations on your computer, open the relevant `.Rmd` file (with the brms-workshop project active in RStudio). The website is at <https:/mvuorre.github.io/brms-workshop>

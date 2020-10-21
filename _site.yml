@@ -1,0 +1,27 @@
+name: "brms-workshop"
+title: "brms workshop"
+description: |
+  Bayesian regression modelling workshop with R, brms, and Stan.
+base_url: https://mvuorre.github.io/brms-workshop
+repository_url: https://github.com/mvuorre/brms-workshop
+creative_commons: CC BY
+twitter:
+  site: "@vuorre"
+  creator: "@vuorre"
+output_dir: "docs"
+collections:
+  posts:
+    feed_item_max: false
+    custom: _custom.html
+navbar:
+  source_url: https://github.com/mvuorre/brms-workshop
+  search: true
+  left:
+    - text: "Materials"
+      href: index.html
+    - text: "About"
+      href: about.html
+output: 
+  distill::distill_article:
+    toc: yes
+    toc_level: 1
