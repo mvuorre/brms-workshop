@@ -1,1 +1,21 @@
-[]
+[
+  {
+    "path": "posts/introduction/",
+    "title": "Introduction",
+    "description": "A conceptual introduction to Bayesian data analysis, workflow, and a first model",
+    "author": [
+      {
+        "name": "Matti Vuorre",
+        "url": "https://vuorre.netlify.com"
+      }
+    ],
+    "date": "2020-10-22",
+    "categories": [],
+    "contents": "\n\nContents\nSlide deck\nRecommended reading\n\nSlide deck\nClick here to go to the slide deck.\n\n\n\nfitvids('.shareagain', {players: 'iframe'});\n\nRecommended reading\nThe three books cited in this lesson are all highly recommended readings. For beginners to Bayesian statistics, I recommend starting with Kruschke (2014), or McElreath (2020). Bayesian Data Analysis by Gelman et al. (2013) is the definitive textbook on the topic, and recommended for more mathematically oriented and/or advanced readers.\n“Bayesian evaluation of behavior change interventions: a brief introduction and a practical example” (Heino, Vuorre, and Hankonen 2018) (pdf)\n\n\n\n\n\n\nGelman, Andrew, John B. Carlin, Hal S. Stern, David B. Dunson, Aki Vehtari, and Donald B. Rubin. 2013. Bayesian Data Analysis, Third Edition. Boca Raton: Chapman; Hall/CRC.\n\n\nHeino, Matti T. J., Matti Vuorre, and Nelli Hankonen. 2018. “Bayesian Evaluation of Behavior Change Interventions: A Brief Introduction and a Practical Example.” Health Psychology and Behavioral Medicine 6 (1): 49–78. https://doi.org/10.1080/21642850.2018.1428102.\n\n\nKruschke, John K. 2014. Doing Bayesian Data Analysis: A Tutorial Introduction with R. 2nd Edition. Burlington, MA: Academic Press.\n\n\nMcElreath, Richard. 2020. Statistical Rethinking: A Bayesian Course with Examples in R and Stan. 2nd ed. CRC Texts in Statistical Science. Boca Raton: Taylor; Francis, CRC Press.\n\n\n\n\n",
+    "preview": "posts/introduction/introduction_files/figure-html5/bayesian-inference-1.png",
+    "last_modified": "2020-10-21T11:25:29+01:00",
+    "input_file": {},
+    "preview_width": 1248,
+    "preview_height": 768
+  }
+]

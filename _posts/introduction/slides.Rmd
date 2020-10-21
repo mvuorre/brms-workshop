@@ -1,0 +1,609 @@
+---
+title: "Introduction"
+subtitle: "Bayesian data analysis and models"
+author: "Matti Vuorre, Oxford Internet Institute"
+date: "brms workshop >> 2020-10-22"
+bibliography: bibliography.bib
+output: 
+  ioslides_presentation:
+    incremental: true
+    transition: 0
+    smaller: true
+    css: extra.css
+---
+
+```{r setup, include=FALSE}
+# Packages
+library(scales)
+library(here)
+library(knitr)
+library(kableExtra)
+library(ggdist)
+library(bayesplot)
+library(tidyverse)
+# knitr chunk options
+opts_chunk$set(
+  echo = FALSE, 
+  cache = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  dev = "svg",
+  fig.align = 'center'
+  )
+# Bayesplot color theme
+color_scheme_set("darkgray")
+# Ensure directory exists for model files
+dir.create("models", FALSE)
+```
+
+# Bayesian data analysis
+
+## What is it? {.build}
+
+>"Bayesian inference is **reallocation** of **credibility** across **possibilities**." ([@kruschke2014], p. 15)
+
+>"Bayesian data analysis takes a **question** in the form of a **model** and uses **logic** to produce an **answer** in the form of **probability distributions**." ([@mcelreath2020], p. 10)
+
+>"Bayesian inference is the **process** of **fitting** a **probability** **model** to a set of **data** and summarizing the result by a **probability distribution on the parameters** of the model and on **unobserved quantities** such as predictions for new observations." ([@gelman2013], p. 1)
+
+## What is it? {.build}
+
+- Bayesian inference consists of updating prior information, using evidence in data, to posterior information
+- Use probability distributions to express information (uncertainty)
+
+```{r bayesian-inference, fig.height = 3.5, fig.width = 7}
+x <- seq(0, 1, by = .001)
+a1 <- 3; a2 <- 6; b1 <- 10; b2 <- 4
+Prior <- dbeta(x, a1, a2)
+Likelihood <- dbeta(x, b1, b2)
+Posterior <- dbeta(x, a1+b1, a2+b2)
+tibble(x, Prior, Likelihood, Posterior) %>% 
+  pivot_longer(-x) %>% 
+  mutate(name = factor(name, levels = c("Prior", "Likelihood", "Posterior"), labels = c(~italic(p)(theta), ~italic(p)(Y~"|"~theta), ~italic(p)(theta~"|"~Y)))) %>% 
+  ggplot(aes(x, value, col = name, fill = name)) +
+  scale_colour_viridis_d("", aesthetics = c("color", "fill"), direction = -1) +
+  scale_y_continuous(expand = expansion(c(0, .1))) +
+  scale_x_continuous("Parameter value", breaks = pretty_breaks()) +
+  geom_ribbon(aes(ymin = 0, ymax = value), size = 0, alpha = .8) +
+  facet_wrap("name", strip.position = "left", labeller = label_parsed) +
+  theme(
+    legend.position = "none",
+    aspect.ratio = 1,
+    panel.grid = element_blank(),
+    axis.text.y = element_blank(),
+    axis.title.y = element_blank(),
+    axis.ticks.y = element_blank()
+    )
+```
+
+## How is it different from what I know? {.build}
+
+- Bayesian data analysis may not be that different from what you already know (i.e. orthodox statistics)
+- In the absence of strong prior information, and presence of large data, the same model evaluated in a Bayesian or orthodox framework will yield the same numerical answers
+  - The interpretations of, and philosophies behind the numbers are vastly different
+- In many ways, orthodox statistical methods can be thought of approximations to Bayesian methods
+- Hypothesis tests are very different between the two frameworks
+- In practice, Bayesian statistics are an extremely flexible modelling framework
+
+## How is it different from what I know?
+
+```{r}
+knitr::include_graphics(here("materials/decision.png"))
+```
+
+(Figure from McElreath, 2020; https://xcelab.net/rm/statistical-rethinking/)
+
+## What can it do for me? {.build}
+
+**You can estimate models in the Bayesian context that might not be otherwise possible.** My first Bayesian analysis was conducted out of necessity. The model I wanted to use did not converge to a solution when I attempted to use orthodox methods (maximum likelihood estimation). Around the same time, I heard about [Stan](https://mc-stan.org). I wrote some Stan code and the model converged without problems, and I was able to use the model that I wanted to. 
+
+**With Bayes, you can actually be confident in your Confidence Intervals**. I have a difficult time understanding *p*-values and Confidence Intervals. It can be difficult to understand what the uncertainty estimates mean when hypothetical replications are difficult to imagine in a given context. With a posterior distribution at hand, the corresponding probability values have a direct interpretation as credibility, uncertainty, or plausibility. 
+
+**Bayesian methods allow easily carrying (un)certainty forward to other quantities of interest**. It can often be difficult to obtain uncertainty estimates for various quantities when using orthodox methods. For example, effect size metrics are often reported without error bars (they can be obtained, but methods for doing so can be finicky and are not often used.) 
+
+To be sure, the Bayesian framework does not come for free. The methods might be difficult to communicate to others, at least until orthodox statistics are replaced in undergraduate applied statistics education. The necessity of complex computational algorithms makes it time-consuming---you will enjoy doing BDA more if you have a fast computer.
+
+## What can it do for me
+
+```{r out.width = "300px"}
+include_graphics(here("materials/knight.jpg"))
+```
+
+- Street cred is real (<https://twitter.com/d_spiegel/status/550677361205977088>)
+
+## Bayesian inference {.build}
+
+- What are the plausible values of parameters $\theta$ after observing data?
+- The posterior distribution $p(\theta \vert Y)$ is the answer
+- Bayes' theorem describes how to compute this distribution
+
+$$
+p(\theta \vert Y) = \frac{p(Y \vert \theta) p(\theta)}{p(Y)}
+$$
+
+- $p(Y \vert \theta)$ is the likelihood function
+  - Probability of data given specific values for the model's parameters
+- $p(\theta)$ is the prior probability distribution on the parameters
+  - How is plausibility distributed across possibilities before seeing data
+- $p(Y)$ is the marginal likelihood of the data
+  - Ignored here
+
+$$
+p(\theta \vert Y) \propto p(Y \vert \theta) p(\theta).
+$$
+
+## Bayesian inference {.build}
+
+$$
+p(\theta \vert Y) \propto p(Y \vert \theta) p(\theta)
+$$
+
+Need to specify how the likelihood of each data point contributes to the parameters' overall probability:
+
+$$
+p(\theta \vert Y) \propto p(\theta) \prod^N_{n=1} p(y_n \vert \theta)
+$$
+
+In terms of programming, we think of adding up the log probabilities of each observation:
+
+$$
+\text{log}\ p(\theta \vert Y) \propto \text{log}\ p(\theta) + \sum^N_{n=1} \text{log}\ p(y_n \vert \theta)
+$$
+
+## Bayesian inference {.build}
+
+```{r}
+knitr::include_graphics(here("materials/homo_bayesianis.png"))
+```
+
+## Bayesian inference | Why Stan? {.build}
+
+- Above, we showed how to evaluate the probability of any specific parameter values given data
+- We *could* try plugging in all the possible values of the parameters to approximate a distribution
+- Many interesting models have too many parameters to do this
+- Maybe we just search for the best combination of parameters and use those? (Maximum likelihood or Maximum a posteriori)
+  - Not as informative, and we can get weird answers for some types of parameters (see literally every `(g)lmer` error)
+- Stan and other Markov Chain Monte Carlo (MCMC) techniques allow us to approximate high dimensional probability distributions without trying out every combination of parameters.
+
+## Stan & brms {.build}
+
+```{r, eval = FALSE, echo = TRUE}
+library(rstan)
+```
+
+- Stan uses [Hamiltonian MCMC](https://observablehq.com/@herbps10/hamiltonian-monte-carlo) to approximate $p(\theta \vert Y)$   
+- We can write out (almost) any probabilistic model and get full probability distributions to express our uncertainty about model parameters
+- Higher-level interfaces allow us to avoid writing raw Stan code
+
+```{r, echo = TRUE}
+library(brms)
+```
+
+```{r}
+knitr::include_graphics("https://raw.githubusercontent.com/paul-buerkner/brms/master/man/figures/brms.png")
+```
+
+- Converts R modelling syntax to Stan language *and extends it in interesting ways*
+
+# Modelling Workflow | A conceptual introduction {.build}
+
+## Modelling schmodelling {.flexbox .vcenter .build}
+
+- What is the role and goal of statistics in science?
+  - ...
+  - We want to build models with parameters that inform our theories
+  - We want to test differences between means
+- Bayes allows us to use probability to evaluate and express uncertainty about possible values of these parameters, and compare and criticize the models themselves
+
+## Bayesian workflow {.build}
+
+To get started with BDA, it is useful to first informally define what a "Bayesian workflow" might look like. Following Kruschke (-@kruschke2014, p. 25), we identify five key data analysis steps
+
+1.  Identify data relevant to the research question.
+2.  Define a descriptive model, whose parameters capture the research question.
+3.  Specify prior probability distributions on parameters in the model.
+4.  Update the prior to a posterior distribution using Bayesian inference.
+5.  Check your model against data, and identify possible problems.
+
+## Identify relevant data {.build}
+
+0. (Research question!)
+1. Define outcomes, or DVs of interest, and predictors, or IVs, of interest
+2. What are the scales? Were variables measured or manipulated? ... 
+
+We collected data from a single person on the effects of sleep deprivation on cognitive performance, as measured by reaction time on a cognitive task. The data are 10 observations of reaction times across 10 days:
+
+```{r echo = TRUE}
+data(sleepstudy, package = "lme4")
+sleepstudy <- filter(sleepstudy, Subject == 308)[,c(2,1)] %>% tibble
+sleepstudy
+```
+
+## Identify relevant data {.build}
+
+- The way in which we ran this experiment (we didn't!) would dictate, to a large extent, the variables and their roles in our analysis. 
+- However, there might be several other important variables to consider, such as how much a person typically sleeps, or whether they are trained on the cognitive task. 
+- Some or all of those variables might not exist in our data, but might guide our thinking nevertheless.
+
+## Define a model {.build}
+
+- A creative process  
+- Just because they are all wrong doesn't mean you shouldn't try to be less wrong
+- How are the outcomes distributed, conditional on the predictors?  
+- Are there natural bounds in the data? Are the data collected on a continuous or categorical scale? 
+- What are the relations between variables? Are they linear or more complicated?
+- We will build a series of increasingly complex & informative models for these data
+
+## Define a model {.build}
+
+- We assume that the reaction times $y_n$ in $1, \dots, N$ are normally distributed with mean $\mu$ and standard deviation $\sigma$
+- Does not include a parameter to evaluate our research question, but an informative example to begin with
+
+You have seen this model written as
+
+$$
+y_n = \mu + \epsilon_n
+$$
+
+where
+
+$$
+\epsilon_n \sim N(0, \sigma^2)
+$$
+
+But we prefer the following notation for its clarity and emphasis on data rather than errors
+
+$$
+y_n \sim N(\mu, \sigma^2)
+$$
+
+## Parameters' prior distribution {.build}
+
+- A prior distribution is the distribution of plausible values a parameter can take, before the data are observed. 
+- It is sometimes pointed at, when critics claim that Bayesian statistics are subjective and therefore useless. 
+- The prior distribution is only one part of a model chosen by the analyst.
+- Specifying priors requires care, and often a vague or even a prior that is constant over the parameter values can be a useful starting point.
+- We would be guided by our expert knowledge of this topic and design of the experiment
+
+## Parameters' prior distribution {.build}
+
+$$
+\mu \sim N(250, 200) \\
+\sigma \sim N^+(0, 200)
+$$
+
+```{r fig.height = 3.5}
+library(distributional)
+library(patchwork)
+set.seed(1)
+a1 <- ggplot() +
+  stat_dist_slab(aes(dist = dist_normal(250, 200), y = 0)) +
+  scale_x_continuous(~mu, expand = expansion(0)) +
+  labs(y = ~p(mu))
+a2 <- ggplot() +
+  stat_dist_slab(aes(dist = dist_truncated(dist_normal(0, 200), 0), y = 0)) +
+  scale_x_continuous(~sigma, expand = expansion(0)) +
+  labs(y = ~p(sigma))
+a3 <- tibble(mu = rnorm(4, 250, 200), sigma = abs(rnorm(4, 0, 200))) %>% 
+  mutate(pars = str_glue("mu~'='~{round(mu)}~sigma~'='~{round(sigma)}")) %>% 
+  rowwise() %>% 
+  mutate(RT = list(rnorm(1000, mu, sigma))) %>% 
+  unnest(RT) %>% 
+  ggplot(aes(RT)) +
+  scale_x_continuous(breaks = pretty_breaks(2)) +
+  geom_histogram(bins = 30) +
+  labs(subtitle = "Simulated datasets") +
+  facet_wrap("pars", labeller = label_parsed) +
+  theme(axis.title.y = element_blank())
+(a1|a2|a3) & 
+  scale_y_continuous(expand = expansion(c(0, .1))) & 
+  theme(
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+```
+
+## Parameters' prior distribution | But how? {.build}
+
+- If you wish to "let the data speak for itself", the prior can be set to a constant over the possible values of the parameter. 
+  - Whether such a **noninformative** or **flat** prior leads to a "Bayesian" analysis is, however, debatable. 
+- Currently, so called **weakly informative** priors are popular, because they help prevent certain computational issues in sampling from the model's posterior distribution, while remaining mostly uninformative about the parameter values. 
+- **Informative priors** have a substantial impact on the posterior distribution
+  - Useful when strong prior information is available
+  - Required for hypothesis testing (e.g. Bayes factors)
+- It is OK to start with a noninformative prior, but you will likely be able to tell how implausible such a starting point can be with further thought & simulation.
+- Kruschke suggests that a prior should be chosen such that you could *defend it in front of a sceptical audience*
+- Choosing priors vs. likelihood functions
+
+## Bayesian updating {.build}
+
+$$
+p(\theta \vert Y) \propto p(Y \vert \theta) p(\theta)
+$$
+
+```{r echo = TRUE}
+fit0 <- brm(
+  formula = Reaction ~ 1, 
+  family = gaussian(), 
+  prior = prior(normal(250, 200), class = "Intercept") +
+    prior(normal(0, 200), class = "sigma"),
+  data = sleepstudy,
+  sample_prior = "yes",
+  iter = 2000,
+  chains = 4,
+  cores = 4,
+  file = here("models/introduction-0"), 
+)
+```
+
+## Bayesian updating
+
+It is important to check that the MCMC chains have converged to a common solution
+
+```{r, echo = TRUE}
+plot(fit0, combo = c("dens_overlay", "trace"))
+```
+
+## Bayesian updating
+
+```{r echo = TRUE}
+summary(fit0)
+```
+
+## Posterior predictive check
+
+Once a posterior distribution is obtained, it is prudent to check whether it makes reasonable predictions; if it "fits the data" well. This is sometimes called posterior predictive checking, because we use the posterior to generate predictions that are then checked against data. These checks can focus on the overall "fit" of the model...
+
+```{r, echo = TRUE, fig.height = 4, fig.width = 6}
+pp_check(fit0, type = "hist", nsamples = 5, binwidth = 30)
+```
+
+## Posterior predictive check
+
+...or focus on particular aspects of the data, such as the minimum or maximum values
+
+```{r}
+x <- posterior_predict(fit0, summary = FALSE)
+ppc_stat_2d(sleepstudy$Reaction, x, c("min", "max"))
+```
+
+## Model 2 {.build}
+
+- The previous model was a "null" model; did not include a predictor
+- **What is the effect of _days of sleep deprivation_ on reaction time**
+
+$$
+y_n \sim N(\beta_0 + \beta_1 x_n, \sigma^2),
+$$
+
+- $\beta_0$ is the intercept
+- $\beta_1$ is the coefficient of days, $x_n$. 
+- $\sigma$ is the residual standard deviation
+
+## Priors {.build}
+
+$$
+\beta_0 \sim N(250, 200) \\
+\beta_1 \sim N(30, 40) \\
+\sigma \sim N^+(0, 200)
+$$
+
+```{r message = FALSE}
+library(brms)
+library(tidybayes)
+set.seed(1)
+model <- bf(Reaction ~ Days, center = FALSE)
+model_prior <- prior(normal(250, 200), class = "b", coef = "Intercept") +
+    prior(normal(30, 40), class = "b", coef = "Days") +
+    prior(normal(0, 200), class = "sigma")
+fit1 <- brm(
+  model, 
+  prior = model_prior,
+  sample_prior = "yes",
+  data = sleepstudy, 
+  file = here("models/introduction-1")
+  )
+prior_distribution <- prior_samples(fit1)
+posterior_distribution <- posterior_samples(fit1)
+
+a1 <- ggplot() +
+  stat_dist_slab(aes(dist = dist_normal(250, 200), y = 0)) +
+  scale_x_continuous(~beta[0], expand = expansion(0)) +
+  labs(y = ~p(beta[0]))
+a2 <- ggplot() +
+  stat_dist_slab(aes(dist = dist_normal(30, 40), y = 0)) +
+  scale_x_continuous(~beta[1], expand = expansion(0)) +
+  labs(y = ~p(beta[1]))
+a3 <- ggplot() +
+  stat_dist_slab(aes(dist = dist_truncated(dist_normal(0, 200), 0), y = 0)) +
+  scale_x_continuous(~sigma, expand = expansion(0)) +
+  labs(y = ~p(sigma))
+
+a4 <- spread_draws(
+  fit1, 
+  prior_b_Intercept, prior_b_Days, prior_sigma, 
+  n = 300
+) %>% 
+  crossing(sleepstudy) %>% 
+  rowwise() %>% 
+  mutate(
+    .prediction = prior_b_Intercept + prior_b_Days*Days + 
+      rnorm(1, 0, prior_sigma)
+  ) %>% 
+  ggplot(aes(Days, .prediction)) +
+  geom_line(aes(group = .draw), alpha = .1) +
+  scale_x_continuous(breaks = pretty_breaks(9)) +
+  scale_y_continuous(breaks = pretty_breaks(5)) +
+  labs(x = "Days of sleep deprivation", y = "Predicted RT")
+((a1|a2|a3) & scale_y_continuous(expand = expansion(c(0, .1))))/a4
+```
+
+## Bayesian updating {.build}
+
+```{r echo = TRUE}
+fit1 <- brm(
+  bf(Reaction ~ Days, center = FALSE),
+  prior = prior(normal(250, 200), class = "b", coef = "Intercept") +
+    prior(normal(30, 40), class = "b", coef = "Days") +
+    prior(normal(0, 200), class = "sigma"),
+  sample_prior = "yes",
+  data = sleepstudy, 
+  file = here("models/introduction-1")
+  )
+```
+
+
+```{r fig.height = 3}
+set.seed(1)
+p1 <- sleepstudy %>% 
+  ggplot(aes(Days, Reaction)) +
+  scale_x_continuous(breaks = pretty_breaks(9)) +
+  scale_y_continuous(breaks = pretty_breaks(5)) +
+  labs(x = "Days of sleep deprivation", y = "RT")
+tmp <- spread_draws(
+  fit1, 
+  prior_b_Intercept, prior_b_Days,
+  n = 300
+) %>% 
+  crossing(sleepstudy) %>% 
+  rowwise() %>% 
+  mutate(
+    .value = prior_b_Intercept + prior_b_Days*Days
+  ) 
+p2 <- p1 %+% 
+  tmp + 
+  aes(y=.value, group = .draw) + 
+  geom_line(alpha = .05) +
+  labs(x = "Days of sleep deprivation", y = "Prior predicted mean RT")
+p3 <- p2 %+% 
+  add_fitted_draws(sleepstudy, fit1, n = 300) +
+  labs(x = "Days of sleep deprivation", y = "Posterior predicted mean RT")
+(p2 | p1 + geom_point() | p3) & coord_cartesian(ylim = c(-500, 1000))
+```
+
+<smaller>from https://www.tjmahr.com/bayes-theorem-in-three-panels/</smaller>
+
+## Bayesian updating
+
+```{r echo = TRUE}
+plot(fit1, combo = c("dens_overlay", "trace"))
+```
+
+## Results
+
+```{r echo = TRUE}
+summary(fit1)
+```
+
+## Summarising the posterior distribution
+
+```{r fig.height = 4, fig.width = 5, echo = TRUE}
+gather_draws(fit1, b_Intercept, b_Days, sigma) %>% 
+  ggplot(aes(y=.variable, x = .value)) +
+  stat_histinterval(breaks = 50) +
+  scale_x_continuous("Parameter value") +
+  theme(axis.title.y = element_blank())
+```
+
+## Summarising the posterior distribution {.build}
+
+- Sometimes, the posterior probability can be a useful, concise summary
+
+```{r echo = TRUE}
+hypothesis(fit1, "Days > 10")
+```
+
+## Meet the S x P matrix {.build}
+
+```{r echo = TRUE}
+post <- posterior_samples(fit1)[,1:3] %>% tibble
+head(post)
+```
+
+```{r echo = TRUE}
+post$qoi <- post$b_Days / post$sigma
+posterior_summary(post)
+```
+
+## Posterior predictive check
+
+```{r echo = TRUE}
+pp_check(fit1, nsamples = 300)
+```
+
+## Posterior predictive check
+
+```{r echo = TRUE}
+x <- posterior_predict(fit1, summary = FALSE)
+ppc_stat_2d(sleepstudy$Reaction, x, c("min", "max"))
+```
+
+## Another model
+
+```{r echo = TRUE}
+plot(conditional_effects(fit1, "Days"), points = TRUE)
+```
+
+- Perhaps we should model variance on days?
+
+## Another model {.build}
+
+$$
+y_n \sim N(\beta_0 + \beta_1 x_n, \text{exp}(\gamma_0 + \gamma_1x_1)^2),
+$$
+
+```{r echo = TRUE}
+new_model <- bf(Reaction ~ Days, center = FALSE) + lf(sigma ~ Days)
+get_prior(new_model, sleepstudy)
+```
+
+## Another model
+
+```{r echo = TRUE}
+fit2 <- brm(
+  new_model,
+  prior = prior(normal(250, 200), class = "b", coef = "Intercept") +
+    prior(normal(30, 40), class = "b", coef = "Days"),
+  sample_prior = "yes",
+  data = sleepstudy,
+  control = list(adapt_delta = .95),
+  file = here("models/introduction-2")
+  )
+```
+
+## Summarising the posterior distribution
+
+```{r echo = TRUE}
+summary(fit2)
+```
+
+## Summarising the posterior distribution
+
+```{r fig.height = 3, fig.width = 5, echo = TRUE}
+mcmc_hist(fit2, pars = c("b_sigma_Days", "b_Days"))
+```
+
+## Model comparison
+
+```{r echo = TRUE}
+options(loo.cores = parallel::detectCores(logical = FALSE))
+looics <- loo(fit0, fit1, fit2)
+looics
+```
+
+## Other summaries
+
+```{r echo = TRUE}
+bayes_R2(fit1) %>% kable
+bayes_R2(fit2) %>% kable
+```
+
+## Wrap-up {.build}
+
+This introduction to Bayesian data analysis was necessarily brief, but hopefully has introduced the important concepts that we will keep encountering in the next sessions.
+
+```{r}
+knitr::include_graphics(here("materials/bayes_theorem.jpg"))
+```
+
+## References
