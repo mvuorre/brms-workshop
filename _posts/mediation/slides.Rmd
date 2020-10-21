@@ -6,7 +6,7 @@ date: "brms workshop >> 2020-10-22"
 bibliography: bibliography.bib
 output: 
   ioslides_presentation:
-    incremental: false
+    incremental: true
     transition: 0
     smaller: true
     css: extra.css
@@ -329,7 +329,7 @@ $$
 &\\mbox{[mediated effect]} \\\\ c &= c' + me &\\mbox{[total effect]}
 \\end{align\*}
 
-## Multilevel mediation \| Practical implementation
+## Multilevel mediation | Practical implementation {.build}
 
 We developed software for Bayesian estimation of multilevel mediation
 models [@vuorre2017a; @vuorre2017b]
@@ -346,7 +346,7 @@ models [@vuorre2017a; @vuorre2017b]
 install.packages("bmlm")
 ```
 
-## Multilevel mediation \| Practical implementation
+## Multilevel mediation | Practical implementation {.build}
 
 -   I wrote the bmlm package before brms had multivariate capabilities
 -   We can go through the paper to learn more about bmlm
@@ -361,7 +361,7 @@ Bayesian Regression Models using Stan [@bürkner2017; @bürkner2018]
 -   Extremely flexible
 -   A bit more post-processing required with mediation vs. bmlm
 
-## Data
+## Data {.build}
 
 It is possible that there is heterogeneity between events, and thus we model parameters as varying between events.
 
@@ -394,6 +394,8 @@ fit1 <- brm(
   file = here("models/mediation-1")
 )
 ```
+
+- `|p|` indicates shared covariance matrix, `p` is arbitrary
 
 ## Model summary
 
@@ -479,15 +481,22 @@ as.data.frame(y$hypothesis) %>%
 
 ## Posterior predictive check
 
-```{r}
-pp_check(fit1, resp = 'TE')
+```{r echo = TRUE}
+pp_check(
+  fit1, resp = "TE", nsamples = 2,
+  type = "freqpoly_grouped", group = "Survey" 
+  )
 ```
 
 ## Posterior predictive check
 
-```{r}
-pp_check(fit1, resp = 'Mood')
+```{r echo = TRUE}
+pp_check(
+  fit1, resp = "Mood", nsamples = 2,
+  type = "freqpoly_grouped", group = "Survey" 
+  )
 ```
+
 
 ## Posterior predictive check {.flexbox .vcenter}
 
