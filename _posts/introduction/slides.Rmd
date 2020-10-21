@@ -32,8 +32,6 @@ opts_chunk$set(
   )
 # Bayesplot color theme
 color_scheme_set("darkgray")
-# Ensure directory exists for model files
-dir.create("models", FALSE)
 ```
 
 # Bayesian data analysis
