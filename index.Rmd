@@ -9,6 +9,7 @@ listing:
 ---
 
 ```{r download-datasets}
+library(here)
 # Ensure directories exist
 dir.create("data", FALSE)
 dir.create("models", FALSE)

@@ -4,4 +4,4 @@
 .Ruserdata
 data/
 *_cache/
-models/
+*models/
