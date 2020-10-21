@@ -1,0 +1,534 @@
+---
+title: "Ordinal Regression Models"
+subtitle: "Good, better, best"
+author: "Matti Vuorre, Oxford Internet Institute"
+institute: "Oxford Internet Institute, University of Oxford"
+date: "brms workshop >> 2020-10-22"
+bibliography: bibliography.bib
+output: 
+  ioslides_presentation:
+    incremental: true
+    transition: 0
+    smaller: true
+    css: extra.css
+---
+
+```{r setup, include = FALSE}
+library(knitr)
+library(here)
+library(scales)
+library(broom)
+library(ggdist)
+library(brms)
+library(bayesplot)
+library(ordinal)
+library(patchwork)
+library(tidyverse)
+opts_chunk$set(
+  cache = TRUE, 
+  echo = FALSE, 
+  message = FALSE, 
+  warning = FALSE, 
+  fig.retina = 2,
+  fig.align = 'center', comment = "#>"
+  )
+options(mc.cores = parallel::detectCores())
+theme_set(theme_classic(base_size = 13))
+# Example data
+dat <- read_csv(here("data/Forstmann.csv"))
+dat <- dat %>% 
+  select(Mood, TE, Gender, Age, Survey, H24 = Hallucinogens_24)
+# Although scales were described as x-point Likert, they have non-integers
+dat <- mutate(dat, Mood = floor(Mood), TE = floor(TE))
+dat <- drop_na(dat)
+dat <- mutate(dat, across(c(Gender, Survey, H24), factor))
+```
+
+# Introduction
+
+## What are ordinal data
+
+```{r out.width = "700px"}
+knitr::include_graphics(here("materials/mood-item.png"))
+```
+
+- Ordinal data are common in psychology
+- Most common are Likert items
+- But also e.g. [item above](https://wongbakerfaces.org/); school grades; number of forks you own; discrete temporal data
+
+## Methods for analysis
+
+- Metric models
+  - Models that assume outcomes have a continuous distribution, e.g. *t*-test
+  - Overestimate information in data; common & "simple"
+- [Nonparametric statistics](https://lindeloev.github.io/tests-as-linear/)
+  - e.g. analyses of signed ranks (R: `?wilcox.test`, etc.)
+  - Underestimate information in data; don't scale well
+- Ordinal models
+  - A zoo of models that treat outcomes appropriately as ordered categories
+  - Let's learn more!
+
+## "Analyzing ordinal data with metric models: What could possibly go wrong?"
+
+- [Liddell and Kruschke](https://doi.org/10.1016/j.jesp.2018.08.009) surveyed 68 Psychology articles that analysed ordinal data, and found that *every* article used metric models [-@liddell2018]
+- Metric models on ordinal data can lead to false alarms, failures to detect true effects, distorted effect size estimates, and *inversions* of effects
+- Three main shortcomings of metric models:
+  - Response categories may not be (e.g. psychologically) equidistant
+  - Responses can be non-normally distributed
+  - Can treat differences in variances of underlying variable inappropriately
+- I don't mean to be an alarmist, or ignore practical considerations. We don't know the empirical rate of differences. But...
+
+## "Analyzing ordinal data with metric models: What could possibly go wrong?"
+
+```{r, fig.height = 3, fig.width = 7}
+movies <- read_csv(here("data/MoviesData.csv"))
+movies <- select(movies, Movie = ID, Title = Descrip, n1:n5) %>% 
+  mutate(Movie = factor(Movie))
+movies510 <- filter(movies, Movie %in% c(5, 10))
+movies510 <- pivot_longer(
+  movies510, -c(Movie, Title), "Rating", values_to = "Count"
+  ) %>% 
+  mutate(Rating = as.numeric(str_extract(Rating, "[0-9]"))) %>% 
+  uncount(Count)
+movies510 %>% 
+  ggplot(aes(Rating)) +
+  geom_histogram(binwidth = .5, center = 0) +
+  scale_y_continuous(expand = expansion(c(0, .1))) +
+  facet_wrap("Movie", nrow = 1, labeller = label_both)
+```
+
+```{r}
+y <- t.test(scale(Rating) ~ Movie, data = movies510)
+y <- tidy(y)
+# Reverse because t-test subtracts latter level from former
+y <- mutate(y, across(where(is.numeric), ~-round(., 2)))
+
+y2 <- clm(ordered(Rating) ~ Movie, ~ Movie, link = "probit", data = movies510)
+y2 <- tidy(y2, conf.int = TRUE)[5,]
+y2 <- mutate(y2, across(where(is.numeric), ~round(., 2)))
+```
+
+- **Welch's _t_-test**: Movie 10's mean rating was significantly greater (`r str_glue("Standardized difference = {y$estimate} [{y$conf.low}, {y$conf.high}]")`)
+- **Cumulative probit model**: Movie 10's mean rating was significantly smaller (`r str_glue("Difference = {y2$estimate} [{y2$conf.low}, {y2$conf.high}]")`)
+- I cherry-picked this example *but it exists*
+
+# Ordinal models
+
+## Ordinal models
+
+- There are many different ordinal models
+- We focus on the **cumulative model** (**CM**)
+  - Generally the most useful / widely applicable model
+- IRT? SDT?
+- We introduce CM in the context of a [study]((https://www.pnas.org/cgi/doi/10.1073/pnas.1918477117) conducted by [@forstmann2020]
+
+## Cumulative model {.build}
+
+```{r out.width = "700px"}
+knitr::include_graphics(here("materials/mood-item.png"))
+```
+
+- 1,225 festivalgoes were asked about their mood and substance use, among other things
+- The mood rating item, $Y$, had $K + 1 = 6$ categories $1, 2, ..., 6$
+
+```{r}
+head(dat)
+```
+
+## Cumulative model
+
+- CM assumes that the observed categorical variable $Y$ is based on the categorization of an unobserved ("latent") variable $\tilde{Y}$ with $K$ thresholds $\tau = (\tau_1, \dots, \tau_k)$.
+- In this example, $\tilde{Y}$ has a natural interpretation as current mood
+
+- We assume that $\tilde{Y}$ has a normal distribution, but other choices are possible, such as logistic (common; default)
+
+- Describe the ordered distribution of responses using thresholds
+  - $Y = k \Leftrightarrow \tau_{k-1} < \tilde{Y} \leq \tau_k$
+
+- These thresholds give the probability of each response category
+  - $Pr(Y = k) = \Phi(\tau_k) - \Phi(\tau_{k-1})$
+
+- $\tilde{Y}$ is amenable to regression (without intercept)
+  - $\tilde{Y} \sim N(\eta, \sigma = 1); \ \eta = b_1x_1 +...$
+  - $Pr(Y = k \vert \eta) = \Phi(\tau_k - \eta) - \Phi(\tau_{k-1} - \eta)$
+
+  
+## Cumulative model
+
+```{r out.width = "600px"}
+knitr::include_graphics(here("materials/mood-item.png"))
+```
+
+```{r fig.width = 4, fig.height = 4}
+tab <- count(dat, Mood, name = "Count") %>% 
+  mutate(
+    p = Count / sum(Count), 
+    cp = cumsum(p), 
+    z = qnorm(cp)
+    )
+
+p1 <- tab %>% 
+  ggplot(aes(Mood)) +
+  geom_col(aes(y = Count))
+p1
+```
+
+## Cumulative model
+
+```{r out.width = "600px"}
+knitr::include_graphics(here("materials/mood-item.png"))
+```
+
+```{r fig.width = 6, fig.height = 4}
+x <- tidy(ordinal::clm(ordered(Mood) ~ 1, link = "probit", data = dat))
+thresholds <- pull(x, estimate)
+x <- tibble(
+  x = seq(-4, 4, by = .01), 
+  y = dnorm(x)
+  )
+p1 <- x %>% 
+  ggplot(aes(x, y)) +
+  geom_line(size = 1) +
+  scale_y_continuous(expand = expansion(c(0, .3))) +
+  scale_x_continuous(
+    expression(tilde(Y))
+  ) +
+  theme(
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+p1
+```
+
+## Cumulative model
+
+```{r out.width = "600px"}
+knitr::include_graphics(here("materials/mood-item.png"))
+```
+
+```{r fig.width = 6, fig.height = 4}
+p1 + 
+  scale_x_continuous(
+    expression(tilde(Y)), breaks = thresholds, 
+    labels = c(expression(tau[1]), ~tau[2], ~tau[3], ~tau[4], ~tau[5])
+  ) +
+  geom_vline(xintercept = thresholds, size = .25)
+```
+
+## Cumulative model
+
+```{r echo = TRUE}
+tab <- count(dat, Mood) %>% 
+  mutate(
+    p = n / sum(n), 
+    cp = cumsum(p), 
+    z = qnorm(cp)
+    )
+```
+
+```{r}
+tab
+```
+
+## Cumulative model
+
+```{r echo = TRUE}
+tab <- count(dat, Mood) %>% 
+  mutate(
+    p = n / sum(n), 
+    cp = cumsum(p), 
+    z = qnorm(cp)
+    )
+```
+
+```{r fig.height = 3}
+p2 <- tab %>% 
+  ggplot(aes(Mood, cp)) +
+  geom_line() +
+  geom_point(shape = 21, fill = "white")
+p3 <- tab[-6,] %>% 
+  ggplot(aes(Mood, z)) +
+  geom_line() +
+  geom_point(shape = 21, fill = "white")
+p1 | p2 | p3
+```
+
+## Cumulative model | Ok, but how do I do that in practice?
+
+```{r echo = TRUE, eval = FALSE}
+library(brms)  # Bayesian, slower, more flexible
+library(ordinal)  # Frequentist, fast, less flexible
+```
+
+- So far we have described a weird link function + intercepts
+- Write your regressions in R (brms) modelling syntax
+- Effects on $\tilde{Y}$ are directly interpretable
+
+## My first cumulative model
+
+```{r echo = TRUE, results = 'hide'}
+fit1 <- brm(
+  Mood ~ H24,
+  family = cumulative("probit"),
+  data = dat,
+  file = here("models/ordinal-1")
+)
+```
+
+- `family = cumulative()`: CM
+- `"probit"`: $\tilde{Y} \sim {N}(\eta, \sigma = 1)$
+- `Mood ~ H24`: $\eta = b_1\text{H24}$
+
+- $b_1$ is the degree to which mood is greater in people who used hallucinogens in the past 24 hours, compared to people who didn't use
+- Scale of the latent variable (standard deviations)
+
+## Cumulative model
+
+```{r echo = TRUE}
+summary(fit1)
+```
+
+## Cumulative model
+
+```{r fig.height = 8}
+plot(fit1, pars = "b_", N = 6)
+```
+
+## Cumulative model
+
+```{r}
+thresholds <- fixef(fit1)[1:5,1]
+beta1 <- fixef(fit1)[6,1]
+x <- tibble(
+  x = seq(-4, 4, by = .01), 
+  `0` = dnorm(x), 
+  `1` = dnorm(x, beta1)
+  )
+x %>% 
+  pivot_longer(c(`0`, `1`), names_to = "H24") %>% 
+  ggplot(aes(x, value, col = H24)) +
+  geom_vline(xintercept = thresholds, size = .25) +
+  geom_line(size = 1) +
+  scale_y_continuous(expand = expansion(c(0, .3))) +
+  scale_x_continuous(
+    expression(tilde(Y)), breaks = thresholds, 
+    labels = c(expression(tau[1]), ~tau[2], ~tau[3], ~tau[4], ~tau[5])
+  ) +
+  annotate(
+    "segment", y = 0.41, yend = 0.41, x = 0, xend = beta1, 
+    arrow = arrow(length = unit(4, "points")), size = 1
+  ) +
+  annotate("text", label = ~beta[1], y = 0.4, x = beta1/2, size = 6, vjust = -1) +
+  theme(
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+```
+
+## Cumulative model
+
+```{r echo = TRUE}
+conditional_effects(fit1, categorical = TRUE)
+```
+
+## Cumulative model
+
+```{r echo = TRUE}
+pp_check(fit1, "bars_grouped", group = "H24")
+```
+
+## Cumulative model
+
+- It is considered SOP to not assume equal variances when we do e.g. t tests
+- Metric models can deal terribly with different variances in $\tilde{Y}$
+- Cannot simultaneously estimate thresholds and sigma, which is fixed to 1 for baseline group
+- However, we can predict the variance (without intercept)
+- $Pr(Y = k \vert \eta, disc) = \Phi(disc \times (\tau_{k+1} - \eta)) - \Phi(disc \times (\tau_{k} - \eta))$
+- `disc`?
+  - IRT: Discrimination parameter (slope of response function)
+  - Predicted on the log scale $disc = exp(\eta_{disc})$
+  - $\sigma$ = $1/disc$
+- $\tilde{Y} \sim N(\eta, 1/exp(\eta_{disc})); \ \eta = b_1x_1 +...; \eta_{disc} = g_1x_2 + ...$
+
+## Cumulative model
+
+```{r echo = TRUE, results = 'hide'}
+fit2 <- brm(
+  bf(Mood ~ H24) + 
+    lf(disc ~ 0 + H24, cmc = FALSE),
+  family = cumulative("probit"),
+  data = dat,
+  file = here("models/ordinal-2")
+)
+```
+
+## Cumulative model
+
+```{r}
+summary(fit2)
+```
+
+## Cumulative model
+
+```{r echo = TRUE, fig.height = 3}
+posterior_samples(fit2, pars = "H24") %>%
+  mutate(sigma_h24 = 1 / exp(b_disc_H241)) %>% 
+  mcmc_hist()
+```
+
+## Cumulative model
+
+```{r}
+thresholds <- fixef(fit2)[1:5,1]
+beta1 <- fixef(fit2)[6,1]
+disc1 <- 1/exp(fixef(fit2)[7,1])
+x <- tibble(
+  x = seq(-4, 4, by = .01), 
+  `0` = dnorm(x), 
+  `1` = dnorm(x, beta1, disc1)
+  )
+x %>% 
+  pivot_longer(c(`0`, `1`), names_to = "H24") %>% 
+  ggplot(aes(x, value, col = H24)) +
+  geom_vline(xintercept = thresholds, size = .25) +
+  geom_line(size = 1) +
+  scale_y_continuous(expand = expansion(c(0, .3))) +
+  scale_x_continuous(
+    expression(tilde(Y)), breaks = thresholds, 
+    labels = c(expression(tau[1]), ~tau[2], ~tau[3], ~tau[4], ~tau[5])
+  ) +
+  annotate(
+    "segment", y = 0.44, yend = 0.44, x = 0, xend = beta1, 
+    arrow = arrow(length = unit(4, "points")), size = 1
+  ) +
+  annotate("text", label = ~beta[1], y = 0.42, x = beta1/2, size = 6, vjust = -1) +
+  theme(
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+```
+
+# More ordinal models
+
+## Category specific effects {.build}
+
+- Cannot use CM
+- Adjacent category model: predict decisions between categories
+
+```{r out.width = "700px"}
+knitr::include_graphics(here("materials/acat.png"))
+```
+
+- One problem, however...
+
+```{r echo = TRUE}
+table(dat$H24, dat$Mood)
+```
+
+## Category specific effects {.build}
+
+- There are two cells with no observations
+- Those category-specific effects won't be identified
+- If only there was a way to inject information to the model...
+- Bayes to the rescue!
+
+```{r echo = TRUE, results = 'hide'}
+weakly_informative_prior <- prior(normal(0, 1.5), class = "b")
+fit3 <- brm(
+  bf(Mood ~ cs(H24)),
+  family = acat("probit"),
+  prior = weakly_informative_prior,
+  data = dat,
+  control = list(adapt_delta = .95),
+  file = here("models/ordinal-3")
+)
+```
+
+## Category specific effects
+
+```{r echo = TRUE}
+summary(fit3)
+```
+
+## Category specific effects
+
+```{r}
+conditional_effects(fit3, categorical = TRUE)
+```
+
+## Category specific effects
+
+```{r}
+x <- conditional_effects(fit1, categorical = TRUE)[[1]]
+p1 <- x %>% 
+  ggplot(aes(cats__, estimate__, col = H24)) +
+  geom_pointrange(
+    aes(ymin = lower__, ymax = upper__), position = position_dodge(.25)
+  ) +
+  labs(
+    subtitle = "Cumulative model",
+    x = "Response category (Mood)", 
+    y = "Probability"
+    )
+x <- conditional_effects(fit3, categorical = TRUE)[[1]]
+p2 <- x %>% 
+  ggplot(aes(cats__, estimate__, col = H24)) +
+  geom_pointrange(
+    aes(ymin = lower__, ymax = upper__), position = position_dodge(.25)
+  ) +
+  labs(
+    subtitle = "Adjacent category model (CS)",
+    x = "Response category (Mood)", 
+    y = "Probability"
+    )
+(p1 | p2) + plot_layout(guides = "collect")
+```
+
+## Model comparison
+
+```{r echo = TRUE, results = 'hide'}
+fit4 <- brm(
+  bf(Mood ~ H24),
+  family = acat("probit"),
+  prior = weakly_informative_prior,
+  data = dat,
+  file = here("models/ordinal-4")
+)
+```
+
+## Model comparison
+
+```{r eval = FALSE, echo = TRUE}
+loo(fit1, fit2, fit3, fit4)
+```
+
+```{r}
+options(loo.cores = parallel::detectCores(logical = FALSE))
+if (!file.exists(here("models/ordinal-loo-1.rds"))) {
+  looics <- loo(fit1, fit2, fit3, fit4)
+  saveRDS(looics, here("models/ordinal-loo-1.rds"))
+} else {looics <- readRDS(here("models/ordinal-loo-1.rds"))}
+looics
+```
+
+# Objections and counterarguments
+
+## Its too difficult
+
+- ...
+- There are, of course, practical considerations
+- The weird link function and intercepts were difficult
+- Effects on latent variable are interpretable just like your betas in `lm()`
+
+## The results are the same anyway
+
+- How do you know?
+- Did you fit an ordinal model to confirm?
+- The prevalence of problems in metric models applied to ordinal data is an empirical questions, and results probably vary greatly between types of data & measures
+- Fit ordinal models whenever you can
+- Afford more nuanced interpretation of what's going on in your data
+
+## References

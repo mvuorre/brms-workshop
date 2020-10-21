@@ -1,0 +1,68 @@
+---
+title: "Ordinal models"
+description: |
+  Models for ordered outcomes
+author:
+  - name: Matti Vuorre
+    url: https://vuorre.netlify.com
+    affiliation: University of Oxford
+    affiliation_url: https://www.oii.ox.ac.uk/people/matti-vuorre/
+    orcid_id: 0000-0001-5052-066X
+date: 2020-10-22
+bibliography: bibliography.bib
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: true
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+opts_chunk$set(echo = FALSE, cache = TRUE)
+```
+
+## Slide deck
+
+Click [here](slides.html) to go to the slide deck.
+
+```{r embed-xaringan, layout="l-body-outset"}
+xaringanExtra::embed_xaringan(url = "slides.html", ratio = "4:3")
+```
+
+## Recommended reading
+
+- "Analyzing ordinal data with metric models: What could possibly go wrong?" [@liddell2018]
+- "Ordinal Regression Models in Psychology: A Tutorial" [@bürkner2019] ([pdf](https://vuorre.netlify.app/publication/2019/03/01/ordinal-regression-models-in-psychology-a-tutorial/burkner-ordinal-regression-models-2019.pdf))
+- Chapter 12.3 of [@mcelreath2020]
+- Chapter 23 of [@kruschke2014]
+The example data set discussed in the slide deck was from Forstmann et al. [-@forstmann2020].
+
+
+```{r preview, preview = TRUE}
+library(tidyverse)
+library(ggdist)
+xx <- c(-2.5, -2, -.5, 1.5, 2)
+ggplot(NULL, aes(y = 0)) +
+  scale_y_continuous(expand = expansion(c(0, .2))) +
+  scale_x_continuous(
+    expression(tilde(Y)), breaks = xx, 
+    labels = c(expression(tau[1]), ~tau[2], ~tau[3], ~tau[4], ~tau[5])
+    ) +
+  scale_fill_viridis_d(
+    "Response category", 
+    labels = str_glue("Y = {1:6}")
+    ) +
+  stat_dist_slab(
+    aes(
+      dist="norm", arg1 = 0, arg2 = 1,
+      fill = stat(cut(x, breaks = c(-Inf, xx, Inf)))
+    )
+  ) +
+  theme(text = element_text(size = 20),
+    axis.title.y = element_blank(),
+    panel.grid = element_blank(),
+    axis.text.y = element_blank(),
+    axis.ticks.y = element_blank()
+  )
+```
+
