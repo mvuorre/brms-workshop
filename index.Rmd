@@ -33,5 +33,5 @@ library(rmarkdown)
 posts <- list.files(
   "_posts", recursive = TRUE, pattern = ".Rmd", full.names = TRUE
   )
-walk(posts, render)
+purrr::walk(posts, render)
 ```
