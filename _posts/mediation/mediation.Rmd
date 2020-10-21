@@ -34,5 +34,9 @@ xaringanExtra::embed_xaringan(url = "slides.html", ratio = "4:3")
 To read our 2017 BRM paper on multilevel mediation, [click here](https://vuorre.netlify.app/publication/2017/12/01/within-subject-mediation-analysis-for-experimental-data-in-cognitive-psychology-and-neuroscience/vuorre-withinsubjectmediationanalysis-2017.pdf)
 
 ```{r preview, preview = TRUE}
-knitr::include_graphics(here("materials/mlm.png"))
+bmlm::mlm_path_plot(
+  xlab = "Hallucinogen\nuse", 
+  ylab = "Positive\nmood", 
+  mlab = "Transformative\nexperience"
+  )
 ```

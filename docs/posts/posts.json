@@ -19,23 +19,6 @@
     "preview_height": 768
   },
   {
-    "path": "posts/mediation/",
-    "title": "Multilevel mediation",
-    "description": "Multivariate multilevel models for path analysis",
-    "author": [
-      {
-        "name": "Matti Vuorre",
-        "url": "https://vuorre.netlify.com"
-      }
-    ],
-    "date": "2020-10-22",
-    "categories": [],
-    "contents": "\n\nContents\nSlide deck\nRecommended reading\n\nSlide deck\nClick here to go to the slide deck.\n\n\n\nfitvids('.shareagain', {players: 'iframe'});\n\nRecommended reading\nTo read our 2017 BRM paper on multilevel mediation, click here\n\n\n\n\n\n\n",
-    "preview": {},
-    "last_modified": "2020-10-21T14:40:05+01:00",
-    "input_file": {}
-  },
-  {
     "path": "posts/ordinal/",
     "title": "Ordinal models",
     "description": "Models for ordered outcomes",
@@ -51,6 +34,25 @@
     "preview": "posts/ordinal/ordinal_files/figure-html5/preview-1.png",
     "last_modified": "2020-10-21T15:18:14+01:00",
     "input_file": {},
+    "preview_width": 1248,
+    "preview_height": 768
+  },
+  {
+    "path": "posts/mediation/",
+    "title": "Multilevel mediation",
+    "description": "Multivariate multilevel models for path analysis",
+    "author": [
+      {
+        "name": "Matti Vuorre",
+        "url": "https://vuorre.netlify.com"
+      }
+    ],
+    "date": "2020-10-22",
+    "categories": [],
+    "contents": "\n\nContents\nSlide deck\nRecommended reading\n\nSlide deck\nClick here to go to the slide deck.\n\npreservedf479484f2ea35ca\n\nRecommended reading\nTo read our 2017 BRM paper on multilevel mediation, click here\n\n\n\n\n\n\n",
+    "preview": "posts/mediation/mediation_files/figure-html5/preview-1.png",
+    "last_modified": "2020-10-21T15:26:12+01:00",
+    "input_file": "mediation.utf8.md",
     "preview_width": 1248,
     "preview_height": 768
   }
