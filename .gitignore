@@ -5,3 +5,5 @@
 *data/
 *_cache/
 *models/
+_posts/**/*.html
+_posts/**/*_files/
