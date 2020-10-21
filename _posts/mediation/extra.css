@@ -1,0 +1,33 @@
+blockquote {
+  background: #f9f9f9;
+  border-left: 5px solid #ccc;
+  margin: 1.5em 10px;
+  padding: 0.5em 1.5em;
+}
+
+body p {
+  color: #000000;
+}
+h2 {
+  font-size: 35px;
+  line-height: 45px;
+  color: #2F4F4F;
+}
+h3 {
+  color: #2F4F4F;
+}
+li {
+  color: #000000;
+}
+pre {
+  color: #000000;
+  overflow-x: auto;
+}
+slides > slide {
+  overflow-x: auto;
+  overflow-y: auto;
+}
+pre code {
+  word-wrap: normal;
+  white-space: pre;
+}

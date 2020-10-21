@@ -1,0 +1,38 @@
+---
+title: "Multilevel mediation"
+description: |
+  Multivariate multilevel models for path analysis
+author:
+  - name: Matti Vuorre
+    url: https://vuorre.netlify.com
+    affiliation: University of Oxford
+    affiliation_url: https://www.oii.ox.ac.uk/people/matti-vuorre/
+    orcid_id: 0000-0001-5052-066X
+date: 2020-10-22
+output:
+  distill::distill_article:
+    self_contained: false
+    toc: true
+---
+
+```{r setup, include=FALSE}
+library(knitr)
+library(here)
+opts_chunk$set(echo = FALSE)
+```
+
+## Slide deck
+
+Click [here](slides.html) to go to the slide deck.
+
+```{r embed-xaringan, layout="l-body-outset"}
+xaringanExtra::embed_xaringan(url = "slides.html", ratio = "4:3")
+```
+
+## Recommended reading
+
+To read our 2017 BRM paper on multilevel mediation, [click here](https://vuorre.netlify.app/publication/2017/12/01/within-subject-mediation-analysis-for-experimental-data-in-cognitive-psychology-and-neuroscience/vuorre-withinsubjectmediationanalysis-2017.pdf)
+
+```{r preview, preview = TRUE}
+knitr::include_graphics(here("materials/mlm.png"))
+```

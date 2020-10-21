@@ -17,5 +17,22 @@
     "input_file": {},
     "preview_width": 1248,
     "preview_height": 768
+  },
+  {
+    "path": "posts/mediation/",
+    "title": "Multilevel mediation",
+    "description": "Multivariate multilevel models for path analysis",
+    "author": [
+      {
+        "name": "Matti Vuorre",
+        "url": "https://vuorre.netlify.com"
+      }
+    ],
+    "date": "2020-10-22",
+    "categories": [],
+    "contents": "\n\nContents\nSlide deck\nRecommended reading\n\nSlide deck\nClick here to go to the slide deck.\n\n\n\nfitvids('.shareagain', {players: 'iframe'});\n\nRecommended reading\nTo read our 2017 BRM paper on multilevel mediation, click here\n\n\n\n\n\n\n",
+    "preview": {},
+    "last_modified": "2020-10-21T13:47:44+01:00",
+    "input_file": {}
   }
 ]

@@ -1,0 +1,504 @@
+---
+title: "Multivariate and multilevel models"
+subtitle: "Path analysis for clustered data"
+author: "Matti Vuorre, Oxford Internet Institute"
+date: "brms workshop >> 2020-10-22"
+bibliography: bibliography.bib
+output: 
+  ioslides_presentation:
+    incremental: false
+    transition: 0
+    smaller: true
+    css: extra.css
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+library(scales)
+library(here)
+library(knitr)
+library(kableExtra)
+library(ggdist)
+library(bmlm)
+library(bayesplot)
+library(patchwork)
+library(brms)
+library(tidyverse)
+color_scheme_set("darkgray")
+opts_chunk$set(
+  echo = FALSE, 
+  cache = TRUE,
+  message = FALSE,
+  warning = FALSE,
+  size = "scriptsize",
+  dev = "svg",
+  fig.align = 'center'
+  )
+options(width = 140)
+# Example data
+dat <- read_csv(here("data/Forstmann.csv"))
+dat <- dat %>% 
+  select(Mood, TE, Gender, Survey, H24 = Hallucinogens_24)
+# Although scales were described as x-point Likert, they have non-integers
+dat <- mutate(dat, Mood = floor(Mood), TE = floor(TE))
+dat <- drop_na(dat)
+dat <- mutate(dat, across(c(Gender, Survey, H24), factor))
+```
+
+# Introduction
+
+## Multivariate models {.build}
+
+-   Previously, we looked at models with one outcome
+
+$$
+y_n \sim N(\mu, \sigma^2)
+$$
+
+-   However, models can have multiple outcomes
+
+    -   Residual correlations
+    -   Parameters can be shared between models
+
+-   Some outcomes may be hypothesized to be predictors of other outcomes
+
+    -   e.g. path analysis, mediation
+
+## Multilevel models {.build}
+
+-   Previously, we treated the regression coefficients as fixed...
+
+-   Data is clustered by some factor(s) (e.g. subject, country, ...)
+
+-   Parameters can vary between clusters
+
+-   Cluster-specific parameters share a prior distribution
+
+    -   Partial pooling of information across clusters
+
+-   Prior distribution's parameters indicate averages and (co)variances
+    of cluster-specific parameters
+
+## This session {.flexbox .vcenter}
+
+**Multilevel mediation models can be seen as multilevel multivariate
+models**
+
+# Mediation
+
+## What is mediation? {.build}
+
+-   Mediation is a hypothesized causal model, whereby effect of an IV to
+    a DV is transmitted through an intermediary variable M
+
+```{r, fig.height = 4, fig.width = 6}
+mlm_path_plot(xlab = "Stimulus\n(X)",
+              mlab = "Organism\n(M)",
+              ylab = "Response\n(Y)")
+```
+
+## Assessing mediation | Experimental approach {.build}
+
+-   Experiment 1: manipulate X and measure M
+-   Experiment 2: manipulate M and measure Y
+-   Establishing a causal chain: Why experiments are often more
+    effective than mediational analyses in examining psychological
+    processes [@spencer2005]
+
+## Assessing mediation | Statistical modeling approach {.build}
+
+-   **Disclaimer**
+
+-   Experiment: manipulate X, measure M and Y
+
+-   Regress M on X; Y on X and M
+
+-   Assume that
+
+    -   Y does not affect M
+    -   No 3rd variable on M to Y relationship
+    -   M is measured without error
+    -   Y and M residuals are not correlated
+
+## Assessing mediation | Statistical modeling approach {.build}
+
+\\begin{align\*} Y\_i &\\sim N(d\_Y + c'X\_i + bM\_i, \\sigma\^{2}\_Y)
+&\\mbox{[Y model]} \\\\ M\_i &\\sim N(d\_M + aX\_i, \\sigma\^{2}\_M)
+&\\mbox{[M model]} \\end{align\*}
+
+\\begin{align\*} me &= a \\times b &\\mbox{[mediated effect]} \\\\ c &=
+c' + me &\\mbox{[total effect]} \\end{align\*}
+
+## Hallucinogens, Transformative experiences, and mood
+
+>Past research suggests that use of psychedelic substances such as LSD or psilocybin may have positive effects on mood and feelings of social connectedness. These psychological effects are thought to be highly sensitive to context, but robust and direct evidence for them in a naturalistic setting is scarce. In a series of field studies involving over 1,200 participants across six multiday mass gatherings in the United States and the United Kingdom, we investigated the effects of psychedelic substance use on transformative experience, social connectedness, and positive mood. [...] We found that psychedelic substance use was significantly associated with positive mood—an effect sequentially mediated byself-reported transformative experience and increased social connectedness. [...] Overall, this research provides robustevidence for positive affective and social consequences of psyche-delic substance use in naturalistic settings.
+
+*Transformative experience and social connectedness mediate the mood-enhancing effects of psychedelic use in naturalistic settings* [@forstmann2020]
+<https://www.pnas.org/content/117/5/2338>
+
+## Hypothesized causal model
+
+For this tutorial, we simplify the authors' model
+
+```{r}
+mlm_path_plot(
+  xlab = "Hallucinogen\nuse", 
+  ylab = "Positive\nmood", 
+  mlab = "Transformative\nexperience"
+  )
+```
+
+## Hallucinogen data
+
+```{r}
+p1 <- dat %>% 
+  ggplot(aes(H24, TE)) +
+  stat_summary(fun.data = mean_cl_boot, size = 1) +
+  geom_point(position = position_jitter(.15, .1), shape = 1, alpha = .25)
+p2 <- dat %>% 
+  ggplot(aes(H24, Mood)) +
+  stat_summary(fun.data = mean_cl_boot, size = 1) +
+  geom_point(position = position_jitter(.15, .1), shape = 1, alpha = .25)
+p3 <- dat %>% 
+  ggplot(aes(TE, Mood)) +
+  geom_point(position = position_jitter(.15, .1), shape = 1, alpha = .25) +
+  geom_smooth(method = 'loess')
+p1 | p2 | p3
+```
+
+## Hallucinogen data
+
+```{r echo = TRUE}
+head(dat)
+```
+
+## Model estimation
+
+We first estimate a single-level ordinary mediation model
+
+```{r echo = TRUE}
+path_m <- bf(TE ~ H24)
+path_y <- bf(Mood ~ H24 + TE)
+get_prior(path_m + path_y + set_rescor(FALSE), data = dat)
+```
+
+## Model estimation
+
+```{r echo = TRUE}
+fit0 <- brm(
+  path_m + path_y + set_rescor(FALSE),
+  data = dat,
+  chains = 4,
+  cores = 4,
+  control = list(adapt_delta = .95),
+  file = here("models/mediation-0")
+)
+```
+
+## Model summary
+
+```{r echo = TRUE}
+summary(fit0)
+```
+
+## Model summary
+
+```{r fig.height = 7}
+plot(fit0, pars = "b_")
+```
+
+## Where's my mediation?
+
+\\begin{align\*} me &= a \\times b &\\mbox{[mediated effect]} \\\\ c &=
+c' + me &\\mbox{[total effect]} \\end{align\*}
+
+```{r echo = TRUE}
+h <- c(
+  a = "TE_H241 = 0",
+  b = "Mood_TE = 0",
+  cp = "Mood_H241 = 0",
+  me = "TE_H241 * Mood_TE = 0",
+  c = "TE_H241 * Mood_TE + Mood_H241 = 0"
+  )
+hypothesis(fit0, h)
+```
+
+## Model summary
+
+```{r echo = TRUE}
+post <- posterior_samples(fit0)
+post <- post %>% 
+  transmute(
+    a = b_TE_H241,
+    b = b_Mood_TE,
+    cp = b_Mood_H241,
+    me = a * b,
+    c = cp + me,
+    pme = me / c
+  )
+```
+
+```{r}
+posterior_summary(post)
+```
+
+## Model summary
+
+```{r echo = TRUE}
+mcmc_intervals(post)
+```
+
+## Figure
+
+```{r echo = TRUE, eval = FALSE}
+conditional_effects(fit0)
+```
+
+```{r}
+x <- conditional_effects(fit0, effects = "H24")
+x <- plot(x, plot = FALSE, points = TRUE)
+x2 <- conditional_effects(fit0, effects = "TE", resp = "Mood")
+x2 <- plot(x2, plot = FALSE, points = TRUE)
+x[[2]] | x[[1]] | x2
+```
+
+# Multilevel Mediation
+
+## Between- vs. within-cluster causal models
+
+- Cluster: subject, school, festival, ...
+
+-   Mediation models often address between-subject processes
+
+    -   Individuals measured once, causal process between individuals
+
+-   We are interested in within-person causal processes
+
+    -   Individuals measured repeatedly, causal process *within
+        individuals*
+
+-   Multilevel model
+
+    -   Average person's within-person causal process
+    -   Causal effects' heterogeneity
+    -   Hierarchical Bayes estimates for individuals in current sample
+
+-   Generally, applicable to any clustering (countries, schools, ...)
+    but we often talk about subjects
+    
+- In the current example, may be heterogeneity between festivals?
+
+## Multilevel mediation
+
+```{r out.width = "500px"}
+knitr::include_graphics(here("materials/mlm.png"))
+```
+
+-   Cluster-specific parameters (e.g. $a_1$)
+-   Parameters' prior distribution is estimated from data
+-   $\sigma_{a_jb_j}$ can indicate an omitted moderator [@tofighi2013]
+
+## Multilevel mediation {.build}
+
+\\begin{align\*} Y\_{ij} &\\sim N(d\_{Yj} + {c'\_j}X\_{ij} +
+b\_{j}M\_{ij}, \\sigma\^{2}\_Y) &\\mbox{[Y model]} \\\\ M\_{ij} &\\sim
+N(d\_{Mj} + {a\_j}X\_{ij}, \\sigma\^{2}\_M) &\\mbox{[M model]}
+\\end{align\*}
+
+$$
+\begin{pmatrix}
+d_{Mj} \\ d_{Yj} \\ a_j \\ b_j \\ c'_j
+\end{pmatrix} \sim  N
+\begin{bmatrix}
+\begin{pmatrix}
+d_M \\ d_Y \\ a \\ b \\ c'
+\end{pmatrix},
+\begin{pmatrix}
+\sigma^2_{d_{Mj}} &  &  &  &  \\
+\sigma_{d_{Mj}d_{Yj}} & \sigma^2_{d_{Y_j}} &  &  & \\
+\sigma_{d_{Mj}a_j} & \sigma_{d_{Yj}a_j} & \sigma^2_{a_j} & &  \\
+\sigma_{d_{Mj}b_j} & \sigma_{d_{Yj}b_j} & \sigma_{{a_j}{b_j}} & \sigma^2_{b_j} &  \\
+\sigma_{d_{Mj}c'_j} & \sigma_{d_{Yj}c'_j} & \sigma_{{a_j}{c'_j}} & \sigma_{{b_j}{c'_j}} & \sigma^2_{c'_j}
+\end{pmatrix}
+\end{bmatrix}
+$$
+
+\\begin{align\*} me &= a \\times b + \\sigma\_{a\_{j}b\_{j}}
+&\\mbox{[mediated effect]} \\\\ c &= c' + me &\\mbox{[total effect]}
+\\end{align\*}
+
+## Multilevel mediation \| Practical implementation
+
+We developed software for Bayesian estimation of multilevel mediation
+models [@vuorre2017a; @vuorre2017b]
+
+### bmlm: Bayesian Multi-Level Mediation
+
+-   R package
+-   Bayesian inference
+-   Data preprocessing, model estimation, summarizing, and visualization
+-   Continuous and binary Y
+-   <https://mvuorre.github.io/bmlm/>
+
+```{r, eval = F, echo = T}
+install.packages("bmlm")
+```
+
+## Multilevel mediation \| Practical implementation
+
+-   I wrote the bmlm package before brms had multivariate capabilities
+-   We can go through the paper to learn more about bmlm
+-   Here, we will focus on a more general solution
+
+### brms
+
+Bayesian Regression Models using Stan [@bürkner2017; @bürkner2018]
+
+-   R package
+-   Bayesian inference
+-   Extremely flexible
+-   A bit more post-processing required with mediation vs. bmlm
+
+## Data
+
+It is possible that there is heterogeneity between events, and thus we model parameters as varying between events.
+
+First, we remove between-event variability from mediator:
+
+```{r, echo = 1}
+dat <- isolate(dat, by = "Survey", value = "TE")
+head(dat)
+```
+
+## Model estimation
+
+Then, extend the model to a multilevel model with Surveys
+
+```{r echo = TRUE}
+path_m <- bf(
+  TE ~ H24 + 
+    (H24 |p| Survey)
+)
+path_y <- bf(
+  Mood ~ H24 + TE_cw + 
+    (H24 + TE_cw |p| Survey)
+)
+fit1 <- brm(
+  path_m + path_y + set_rescor(FALSE),
+  data = dat,
+  chains = 4,
+  cores = 4,
+  control = list(adapt_delta = .99),
+  file = here("models/mediation-1")
+)
+```
+
+## Model summary
+
+```{r echo = TRUE}
+summary(fit1)
+```
+
+## Model summary
+
+```{r fig.height = 7}
+plot(fit1, pars = 'b_')
+```
+
+## Model summary
+
+```{r echo = TRUE}
+post <- posterior_samples(fit1)
+covab <- VarCorr(fit1, summary = FALSE)$Survey$cov %>% 
+  .[,"TE_H241","Mood_TE_cw"]
+post <- post %>% 
+  transmute(
+    a = b_TE_H241,
+    b = b_Mood_TE_cw,
+    cp = b_Mood_H241,
+    me = a * b + covab,
+    c = cp + me,
+    pme = me / c
+  )
+```
+
+```{r}
+posterior_summary(post)
+```
+
+## Model summary
+
+```{r echo = TRUE}
+mcmc_intervals(post)
+```
+
+## Model summary
+
+```{r echo = TRUE, eval = FALSE}
+conditional_effects(fit1)
+```
+
+```{r}
+x <- conditional_effects(fit1, effects = "H24")
+x <- plot(x, plot = FALSE, points = TRUE)
+x2 <- conditional_effects(fit1, effects = "TE_cw", resp = "Mood")
+x2 <- plot(x2, plot = FALSE, points = TRUE)
+x[[2]] | x[[1]] | x2
+```
+
+## Heterogeneity
+
+```{r fig.height = 7}
+plot(fit1, pars = 'sd_')
+```
+
+## Heterogeneity
+
+```{r fig.height = 7}
+x <- plot(fit1, pars = 'cor_', plot = FALSE)
+x[[1]]
+```
+
+## Heterogeneity
+
+```{r}
+library(ggstance)
+h <- c(
+  a = 'TE_H241 = 0',
+  b = 'Mood_TE_cw = 0',
+  me = 'TE_H241 * Mood_TE_cw = 0'
+    )
+y <- hypothesis(fit1, h, class = NULL, scope = 'coef', group = 'Survey')
+as.data.frame(y$hypothesis) %>% 
+  ggplot(aes(Estimate, Group)) +
+  geom_pointrangeh(aes(xmin = CI.Lower, xmax = CI.Upper)) +
+  facet_wrap('Hypothesis', scales = 'free')
+```
+
+## Posterior predictive check
+
+```{r}
+pp_check(fit1, resp = 'TE')
+```
+
+## Posterior predictive check
+
+```{r}
+pp_check(fit1, resp = 'Mood')
+```
+
+## Posterior predictive check {.flexbox .vcenter}
+
+**Any ideas?**
+
+## Model comparison
+
+```{r echo = -1}
+options(loo.cores = parallel::detectCores(logical = FALSE))
+ll <- loo(fit0, fit1)
+ll
+```
+
+## References
