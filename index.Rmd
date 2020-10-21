@@ -8,8 +8,10 @@ listing:
     - ordinal
 ---
 
-```{r download-datasets}
+```{r download-datasets, include = FALSE}
 library(here)
+# GitHub pages
+file.create("docs/.nojekyll", showWarnings = FALSE)
 # Ensure directories exist
 dir.create("data", FALSE)
 dir.create("models", FALSE)
